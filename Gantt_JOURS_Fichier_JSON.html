@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Diagramme de Gantt en Jour, Mois et Ann&eacute;e</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    #captureArea {
+      display: inline-block;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+
+    #ganttWrapper {
+      display: grid;
+      grid-template-columns: 900px auto;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .mois-row, .jours-row {
+      display: grid;
+      font-size: 12px;
+    }
+
+    .mois-cell {
+      background: #f0f0f0;
+      text-align: center;
+      font-weight: bold;
+      border-right: 1px solid #ccc;
+    }
+
+    .jour-cell {
+      text-align: center;
+      border-right: 1px solid #eee;
+      background: white;
+    }
+
+    .gantt-labels, .gantt-bars {
+      display: grid;
+      grid-auto-rows: 30px;
+    }
+
+    .label {
+      border-bottom: 1px solid #ddd;
+      padding: 5px 10px;
+      background: #f9f9f9;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      height: 30px;
+    }
+
+    .bar {
+      border-radius: 4px;
+      background-color: var(--color, #2196F3);
+      grid-column-start: var(--start);
+      grid-column-end: span var(--span);
+      position: relative;
+      cursor: default;
+    }
+
+    .bar::after {
+      content: attr(title);
+      position: absolute;
+      top: -28px;
+      left: 0;
+      font-size: 10px;
+      background: #333;
+      color: white;
+      padding: 3px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      display: none;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .bar:hover::after {
+      display: block;
+    }
+
+    .legend {
+      margin-top: 20px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      max-width: 940px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 5px 0;
+    }
+
+    .color-box {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+    }
+
+    #saveAsJpegBtn {
+      margin-left: 10px;
+      padding: 8px 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #saveAsJpegBtn:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Diagramme de Gantt en Jour, Mois et Ann&eacute;e</h2>
+<input type="file" id="fileInput" accept=".json" />
+<button id="saveAsJpegBtn">Enregistrer sous JPEG</button>
+
+<!-- Conteneur englobant le diagramme et la légende -->
+<div id="captureArea">
+  <div id="ganttWrapper">
+    <div>
+      <div style="height: 25px;"></div>
+      <div id="ganttLabels" class="gantt-labels"></div>
+    </div>
+    <div>
+      <div id="moisRow" class="mois-row"></div>
+      <div id="joursRow" class="jours-row"></div>
+      <div id="ganttBars" class="gantt-bars"></div>
+    </div>
+  </div>
+
+  <div id="legend" class="legend"></div>
+</div>
+
+<script>
+//function abbrLegend(nom) {
+/*
+  const mots = nom.trim().split(/\s+/);
+  let lettre = mots.length > 0 ? mots[0][0].toUpperCase() : '';
+  let numero = mots.slice(1).find(m => /^\d+$/.test(m)) || '';
+  return `${lettre}${numero}`;
+*/
+function abbrLegend(phrase) {
+      return phrase
+        .trim()
+        .replace(/\s+/g, ' ') // Normalise les espaces
+        .split(' ') // Sépare les mots
+        .map(mot => mot.charAt(0)) // Récupère la première lettre
+        .filter(char => /\p{L}|\p{N}/u.test(char)) // Garde lettres (accentuées) ou chiffres
+        .join('')
+        .toUpperCase(); // Met tout en majuscules
+
+}
+
+
+
+
+
+
+  function Javascript_difference_NOMBRE_DE_JOURS_entre_DEUX_DATES_AAAA_MM_JJ(date1 , date2) {
+    date1 = new Date(date1);
+    date2 = new Date(date2);
+    const differenceInDays = (Math.abs((date2 - date1) / (1000 * 60 * 60 * 24))) + 1;
+    return differenceInDays;
+  }
+
+  function convertirDate_AAAAMMJJ_vers_JJMMAAAA(dateStr) {
+    const [annee, mois, jour] = dateStr.split('-');
+    return `${jour}/${mois}/${annee}`;
+  }
+
+  document.getElementById("fileInput").addEventListener("change", function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        const { meta, taches } = data;
+
+        if (!meta || !meta.dateDebutGantt) {
+          alert("Le champ 'meta.dateDebutGantt' est requis.");
+          return;
+        }
+        if (!Array.isArray(taches) || taches.length === 0) {
+          alert("Le tableau 'taches' est vide ou absent.");
+          return;
+        }
+
+        const startDate = new Date(meta.dateDebutGantt);
+        const endDate = new Date(Math.max(...taches.map(t => new Date(t.fin))));
+        const nbJours = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+        const moisRow = document.getElementById("moisRow");
+        const joursRow = document.getElementById("joursRow");
+        const ganttBars = document.getElementById("ganttBars");
+        const ganttLabels = document.getElementById("ganttLabels");
+
+        moisRow.innerHTML = joursRow.innerHTML = ganttBars.innerHTML = ganttLabels.innerHTML = "";
+        moisRow.style.gridTemplateColumns =
+          joursRow.style.gridTemplateColumns =
+          ganttBars.style.gridTemplateColumns = `repeat(${nbJours}, 30px)`;
+        ganttBars.style.gridTemplateRows =
+          ganttLabels.style.gridTemplateRows = `repeat(${taches.length}, 30px)`;
+
+        let currentMonthYear = "";
+        let span = 0;
+        const moisSpans = [];
+
+        for (let i = 0; i < nbJours; i++) {
+          const d = new Date(startDate);
+          d.setDate(d.getDate() + i);
+          const day = d.getDate();
+          const monthYear = d.toLocaleString("fr-FR", { month: "short", year: "numeric" });
+
+          const jourCell = document.createElement("div");
+          jourCell.className = "jour-cell";
+          jourCell.textContent = String(day).padStart(2, "0");
+          joursRow.appendChild(jourCell);
+
+          if (monthYear !== currentMonthYear) {
+            if (span > 0) {
+              moisSpans.push({ label: currentMonthYear, span });
+            }
+            currentMonthYear = monthYear;
+            span = 1;
+          } else {
+            span++;
+          }
+
+          if (i === nbJours - 1) {
+            moisSpans.push({ label: currentMonthYear, span });
+          }
+        }
+
+        moisSpans.forEach(m => {
+          const cell = document.createElement("div");
+          cell.className = "mois-cell";
+          cell.textContent = m.label;
+          cell.style.gridColumn = `span ${m.span}`;
+          moisRow.appendChild(cell);
+        });
+
+        taches.forEach((tache, index) => {
+          const debut = new Date(tache.debut);
+          const fin = new Date(tache.fin);
+          const offset = Math.floor((debut - startDate) / (1000 * 60 * 60 * 24)) + 1;
+          const duree = Math.floor((fin - debut) / (1000 * 60 * 60 * 24)) + 1;
+
+          const label = document.createElement("div");
+          label.className = "label";
+          label.textContent = `${tache.nom} Début : ${convertirDate_AAAAMMJJ_vers_JJMMAAAA(tache.debut)} à Fin : ${convertirDate_AAAAMMJJ_vers_JJMMAAAA(tache.fin)} soit ${Javascript_difference_NOMBRE_DE_JOURS_entre_DEUX_DATES_AAAA_MM_JJ(tache.debut , tache.fin)} jours`;
+          label.style.gridRow = index + 1;
+          ganttLabels.appendChild(label);
+
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          bar.style.gridRow = index + 1;
+          bar.style.setProperty("--start", offset);
+          bar.style.setProperty("--span", duree);
+          bar.style.setProperty("--color", tache.couleur || "#2196F3");
+          bar.title = `${tache.nom}\nDébut : ${convertirDate_AAAAMMJJ_vers_JJMMAAAA(tache.debut)}\nFin : ${convertirDate_AAAAMMJJ_vers_JJMMAAAA(tache.fin)}`;
+          ganttBars.appendChild(bar);
+        });
+
+        const legendDiv = document.getElementById("legend");
+        legendDiv.innerHTML = "<span style='text-decoration:underline;'>Légende :</span>";
+        taches.forEach(tache => {
+          const legendItem = document.createElement("div");
+          legendItem.className = "legend-item";
+
+          const colorBox = document.createElement("div");
+          colorBox.className = "color-box";
+          colorBox.style.backgroundColor = tache.couleur || "#2196F3";
+/*
+          const taskName = document.createElement("span");
+          taskName.textContent = tache.nom;
+*/
+const taskName = document.createElement("span");
+taskName.textContent = abbrLegend(tache.nom);
+
+
+          legendItem.appendChild(colorBox);
+          legendItem.appendChild(taskName);
+          legendDiv.appendChild(legendItem);
+        });
+
+      } catch {
+        alert("Erreur lors de l'analyse du fichier JSON.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Capture JPEG complète avec légende
+  document.getElementById("saveAsJpegBtn").addEventListener("click", () => {
+    const original = document.getElementById("captureArea");
+
+    const clone = original.cloneNode(true);
+    const container = document.createElement("div");
+
+    Object.assign(container.style, {
+      position: 'fixed',
+      top: '-9999px',
+      left: '-9999px',
+      width: original.scrollWidth + 'px',
+      height: original.scrollHeight + 'px',
+      overflow: 'visible',
+      background: 'white'
+    });
+
+    clone.style.overflow = 'visible';
+    clone.style.width = original.scrollWidth + 'px';
+
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    html2canvas(clone, {
+      scale: 2,
+      useCORS: true,
+      width: clone.scrollWidth,
+      height: clone.scrollHeight
+    }).then(canvas => {
+      const link = document.createElement("a");
+      link.download = "diagramme_gantt.jpeg";
+      link.href = canvas.toDataURL("image/jpeg", 1.0);
+      link.click();
+
+      document.body.removeChild(container);
+    });
+  });
+</script>
+
+</body>
+</html>

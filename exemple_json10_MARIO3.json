@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "dateDebutGantt": "2025-04-01"
+  },
+  "taches": [
+    {
+      "nom": "1) Planification",
+      "debut": "2025-04-02",
+      "fin": "2025-04-05",
+      "couleur": "#3498db"
+    },
+    {
+      "nom": "2) Exécution",
+      "debut": "2025-04-06",
+      "fin": "2026-01-14",
+      "couleur": "#2ecc71"
+    },
+    {
+      "nom": "3) Supervision Collective",
+      "debut": "2026-02-04",
+      "fin": "2026-04-17",
+      "couleur": "orange"
+    }
+  ]
+}

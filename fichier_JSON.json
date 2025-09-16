@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "dateDebutGantt": "2024-01-01"
+  },
+  "taches": [
+    {
+      "nom": "Tâche 1",
+      "debut": "2024-01-05",
+      "fin": "2024-01-10",
+      "couleur": "#FF5722"
+    },
+    {
+      "nom": "Tâche 2",
+      "debut": "2024-01-12",
+      "fin": "2024-01-20",
+      "couleur": "#03A9F4"
+    }
+  ]
+}
